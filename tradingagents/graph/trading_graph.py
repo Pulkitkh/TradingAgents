@@ -389,6 +389,51 @@ class TradingAgentsGraph:
             f"asset={asset_type}",
         ])
 
+    def prepare_run(self, company_name, trade_date, asset_type: str = "stock") -> dict[str, Any]:
+        """Resolve prior outcomes and build the complete initial graph state.
+
+        Both :meth:`propagate` and the CLI call this. That matters: the CLI
+        streams ``self.graph`` directly rather than going through ``propagate``,
+        so anything done only inside the propagate path silently does not happen
+        for the CLI — which is how most runs are started. Every piece of run
+        setup therefore lives here, not in the caller.
+        """
+        self.ticker = company_name
+        # Score the previous same-ticker decisions before this run reads them,
+        # so the memory context includes outcomes that have since resolved.
+        self._resolve_pending_entries(company_name)
+        return self.propagator.create_initial_state(
+            company_name,
+            trade_date,
+            asset_type=asset_type,
+            past_context=self.memory_log.get_past_context(company_name),
+            instrument_context=self.resolve_instrument_context(company_name, asset_type),
+            fact_sheet=self.build_fact_sheet(company_name, trade_date, asset_type),
+        )
+
+    def finalize_run(
+        self, final_state, company_name, trade_date, asset_type: str = "stock"
+    ) -> None:
+        """Persist a completed run: state log, decision log, checkpoint cleanup.
+
+        The counterpart to :meth:`prepare_run`, and shared for the same reason —
+        without it the CLI never appended to the decision log, so the reflection
+        loop the framework documents never ran for CLI users.
+        """
+        self.curr_state = final_state
+        self.ticker = company_name
+        self._log_state(trade_date, final_state)
+        self.memory_log.store_decision(
+            ticker=company_name,
+            trade_date=trade_date,
+            final_trade_decision=final_state["final_trade_decision"],
+        )
+        if self.config.get("checkpoint_enabled"):
+            clear_checkpoint(
+                self.config["data_cache_dir"], company_name, str(trade_date),
+                self._run_signature(asset_type),
+            )
+
     def propagate(self, company_name, trade_date, asset_type: str = "stock"):
         """Run the trading agents graph for a company on a specific date.
 
@@ -400,9 +445,6 @@ class TradingAgentsGraph:
         successful node on a subsequent invocation with the same ticker+date.
         """
         self.ticker = company_name
-
-        # Resolve any pending memory-log entries for this ticker before the pipeline runs.
-        self._resolve_pending_entries(company_name)
 
         # Recompile with a checkpointer if the user opted in.
         if self.config.get("checkpoint_enabled"):
@@ -448,19 +490,7 @@ class TradingAgentsGraph:
 
     def _run_graph(self, company_name, trade_date, asset_type: str = "stock"):
         """Execute the graph and write the resulting state to disk and memory log."""
-        # Initialize state — inject memory log context for PM and the
-        # deterministically resolved instrument identity for all agents.
-        past_context = self.memory_log.get_past_context(company_name)
-        instrument_context = self.resolve_instrument_context(company_name, asset_type)
-        fact_sheet = self.build_fact_sheet(company_name, trade_date, asset_type)
-        init_agent_state = self.propagator.create_initial_state(
-            company_name,
-            trade_date,
-            asset_type=asset_type,
-            past_context=past_context,
-            instrument_context=instrument_context,
-            fact_sheet=fact_sheet,
-        )
+        init_agent_state = self.prepare_run(company_name, trade_date, asset_type)
         args = self.propagator.get_graph_args()
 
         # Inject thread_id so same ticker+date+graph-shape resumes; a different
@@ -491,25 +521,7 @@ class TradingAgentsGraph:
         else:
             final_state = self.graph.invoke(init_agent_state, **args)
 
-        # Store current state for reflection.
-        self.curr_state = final_state
-
-        # Log state to disk.
-        self._log_state(trade_date, final_state)
-
-        # Store decision for deferred reflection on the next same-ticker run.
-        self.memory_log.store_decision(
-            ticker=company_name,
-            trade_date=trade_date,
-            final_trade_decision=final_state["final_trade_decision"],
-        )
-
-        # Clear checkpoint on successful completion to avoid stale state.
-        if self.config.get("checkpoint_enabled"):
-            clear_checkpoint(
-                self.config["data_cache_dir"], company_name, str(trade_date),
-                self._run_signature(asset_type),
-            )
+        self.finalize_run(final_state, company_name, trade_date, asset_type)
 
         return final_state, self.process_signal(final_state["final_trade_decision"])
 

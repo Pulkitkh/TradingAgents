@@ -46,6 +46,16 @@ single unverified headline figure carried the entire decision.
 
 ### Fixed
 
+- **The CLI ran a degraded pipeline.** The CLI streams the graph directly rather
+  than calling `propagate()`, so run setup done only in that path silently never
+  happened for CLI users — which is how nearly every run is started. The
+  verified fact sheet was never built (reports came out headed "No verified fact
+  sheet was available"), the memory-log context never reached the Portfolio
+  Manager, and completed runs were never appended to the decision log, so the
+  documented reflection loop had never actually run for CLI users. Both entry
+  points now share `prepare_run` / `finalize_run`, and a test asserts
+  `create_initial_state` has exactly one call site so the paths cannot drift
+  again.
 - **Decision agents receive the analysis date.** The researchers, managers,
   trader, and risk debators were given no date at all, so a model asked to date
   a memo invented one — observed producing an "October 2023" header on a

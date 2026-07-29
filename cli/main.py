@@ -1124,18 +1124,15 @@ def run_analysis(checkpoint: bool | None = None):
         )
         update_display(layout, spinner_text, stats_handler=stats_handler, start_time=start_time)
 
-        # Initialize state and get graph args with callbacks.
-        # Resolve the instrument identity once here so all agents anchor to
-        # the real company (#814); the CLI builds state directly rather than
-        # going through propagate(), so this must happen on the CLI path too.
-        instrument_context = graph.resolve_instrument_context(
-            selections["ticker"], selections["asset_type"]
-        )
-        init_agent_state = graph.propagator.create_initial_state(
+        # Build the initial state through the shared setup path. The CLI streams
+        # the graph directly instead of calling propagate(), so every piece of
+        # run setup — resolved instrument identity, memory-log context, and the
+        # verified fact sheet — must come from one place or the CLI silently
+        # runs a degraded pipeline.
+        init_agent_state = graph.prepare_run(
             selections["ticker"],
             selections["analysis_date"],
-            asset_type=selections["asset_type"],
-            instrument_context=instrument_context,
+            selections["asset_type"],
         )
         # Pass callbacks to graph config for tool execution tracking
         # (LLM tracking is handled separately via LLM constructor)
@@ -1250,6 +1247,25 @@ def run_analysis(checkpoint: bool | None = None):
         final_state = {}
         for chunk in trace:
             final_state.update(chunk)
+
+        # The fact sheet is not emitted by any node, so the merged stream never
+        # carries it. Restore it from the initial state so it reaches the saved
+        # report tree.
+        final_state.setdefault("fact_sheet", init_agent_state.get("fact_sheet", ""))
+
+        # Persist through the shared teardown path: state log, decision log, and
+        # checkpoint cleanup. Without this the CLI never appended to the decision
+        # log, so the reflection loop never ran for CLI users.
+        if final_state.get("final_trade_decision"):
+            try:
+                graph.finalize_run(
+                    final_state,
+                    selections["ticker"],
+                    selections["analysis_date"],
+                    selections["asset_type"],
+                )
+            except Exception as exc:  # noqa: BLE001 — never lose a completed run
+                message_buffer.add_message("System", f"Could not persist run: {exc}")
 
         # Update all agent statuses to completed
         for agent in message_buffer.agent_status:
