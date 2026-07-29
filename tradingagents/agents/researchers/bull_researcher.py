@@ -1,4 +1,6 @@
 from tradingagents.agents.utils.agent_utils import (
+    EVIDENCE_RULES,
+    get_fact_sheet_from_state,
     get_instrument_context_from_state,
     get_language_instruction,
 )
@@ -16,6 +18,9 @@ def create_bull_researcher(llm):
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
         instrument_context = get_instrument_context_from_state(state)
+        fact_sheet = get_fact_sheet_from_state(state)
+        valuation_report = state.get("valuation_report", "")
+        trade_date = state.get("trade_date", "the analysis date")
         asset_type = state.get("asset_type", "stock")
         target_label = "stock" if asset_type == "stock" else "asset"
         fundamentals_label = (
@@ -39,10 +44,29 @@ Market research report: {market_research_report}
 Social media sentiment report: {sentiment_report}
 Latest world affairs news: {news_report}
 {fundamentals_label}: {fundamentals_report}
+Relative valuation vs peers: {valuation_report}
+
+--- VERIFIED FACT SHEET (analysis date {trade_date}) ---
+{fact_sheet}
+--- END VERIFIED FACT SHEET ---
 Conversation history of the debate: {history}
 Last bear argument: {current_response}
 Use this information to deliver a compelling bull argument, refute the bear's concerns, and engage in a dynamic debate that demonstrates the strengths of the bull position.
-""" + get_language_instruction()
+
+
+---
+
+**Debate on evidence, not on emphasis.** The verified fact sheet above is the
+only set of figures either side may state as measured. A figure that appears in
+an analyst report but not in the fact sheet is reported or inferred — you may
+argue from it, but you must say what it is, and you may not treat it as settling
+a point. Where you and your counterpart disagree about a *fact*, stop arguing and
+name the disagreement; where you disagree about what verified facts *mean*, argue
+hard.
+
+Do not treat a sentiment read flagged as "not an independent signal" as
+corroboration — it is the news already counted once.
+""" + EVIDENCE_RULES + get_language_instruction()
 
         response = llm.invoke(prompt)
 

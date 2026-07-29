@@ -18,6 +18,7 @@ from tradingagents.agents.schemas import (
     PortfolioDecision,
     PortfolioRating,
     ResearchPlan,
+    ScenarioProbabilities,
     SentimentBand,
     SentimentReport,
     TraderAction,
@@ -91,6 +92,10 @@ class TestNullishFloatCoercion:
     def test_pm_nullish_price_target_coerces_to_none(self):
         d = PortfolioDecision(
             rating=PortfolioRating.OVERWEIGHT,
+            probabilities=ScenarioProbabilities(
+                prob_upside=0.4, prob_flat=0.35, prob_downside=0.25
+            ),
+            conviction="medium",
             executive_summary="s",
             investment_thesis="t",
             price_target="N/A",

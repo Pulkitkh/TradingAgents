@@ -19,6 +19,18 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_BENCHMARK_TICKER":     "benchmark_ticker",
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
+    # Deterministic evidence layer. Each block costs prompt tokens, so a
+    # rate-limited deployment can trim them without editing code.
+    "TRADINGAGENTS_FACT_SHEET_ENABLED":   "fact_sheet_enabled",
+    "TRADINGAGENTS_PEER_COMPARISON":      "peer_comparison_enabled",
+    "TRADINGAGENTS_RISK_SIZING":          "risk_sizing_enabled",
+    "TRADINGAGENTS_RISK_BUDGET_PCT":      "risk_budget_pct",
+    "TRADINGAGENTS_ACCOUNT_VALUE":        "account_value",
+    # Token-shaping knobs. Previously reachable only by editing this file,
+    # which made the heaviest prompt inputs the hardest ones to tune.
+    "TRADINGAGENTS_NEWS_ARTICLE_LIMIT":        "news_article_limit",
+    "TRADINGAGENTS_GLOBAL_NEWS_ARTICLE_LIMIT": "global_news_article_limit",
+    "TRADINGAGENTS_GLOBAL_NEWS_LOOKBACK_DAYS": "global_news_lookback_days",
     # Provider-specific reasoning/thinking knobs (None = each provider's own
     # default). Settable here for non-interactive runs; the CLI also offers an
     # interactive choice, which is skipped when the matching var is set.
@@ -103,6 +115,21 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # Checkpoint/resume: when True, LangGraph saves state after each node
     # so a crashed run can resume from the last successful step.
     "checkpoint_enabled": False,
+    # Deterministic evidence layer (see dataflows/fact_sheet.py). The fact sheet
+    # is computed before any agent runs and is the only set of figures agents may
+    # state as verified fact. Disabling it does not make agents more cautious —
+    # it removes their ability to distinguish measurement from assertion — so
+    # turn it off only to diagnose token pressure.
+    "fact_sheet_enabled": True,
+    "peer_comparison_enabled": True,
+    "risk_sizing_enabled": True,
+    # Fraction of capital risked per position, in percent. Drives the computed
+    # stop distance -> share count in dataflows/risk_sizing.py.
+    "risk_budget_pct": 1.0,
+    # Total capital, in the instrument's quote currency. When set, risk sizing
+    # emits absolute share counts instead of a per-₹1,00,000 rate. None keeps
+    # the framework portfolio-agnostic, which is the safe default.
+    "account_value": None,
     # Output language for analyst reports and final decision
     # Internal agent debate stays in English for reasoning quality
     "output_language": "English",

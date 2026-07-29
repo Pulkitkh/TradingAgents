@@ -29,6 +29,7 @@ from tradingagents.agents.utils.agent_utils import (
 )
 from tradingagents.agents.utils.memory import TradingMemoryLog
 from tradingagents.dataflows.config import set_config
+from tradingagents.dataflows.fact_sheet import build_fact_sheet
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.llm_clients import create_llm_client
@@ -333,6 +334,35 @@ class TradingAgentsGraph:
         if updates:
             self.memory_log.batch_update_with_outcomes(updates)
 
+    def build_fact_sheet(self, ticker: str, trade_date: str, asset_type: str = "stock") -> str:
+        """Compute the verified fact sheet injected into every report agent.
+
+        Deterministic and LLM-free: price/indicator verification, computed
+        fundamentals with explicit growth bases, peer multiples, volatility-scaled
+        risk levels, and a data-freshness verdict. This is what lets an agent
+        label a claim "verified" and lets a reader check the label, so it is the
+        foundation of the fact/opinion separation the reports depend on.
+
+        Fails open. If the whole sheet cannot be built, agents receive an empty
+        string and their prompts tell them to treat every figure as unverified —
+        degraded output, but never a blocked run.
+        """
+        if not self.config.get("fact_sheet_enabled", True):
+            return ""
+        try:
+            return build_fact_sheet(
+                ticker,
+                str(trade_date),
+                asset_type=asset_type,
+                include_peers=self.config.get("peer_comparison_enabled", True),
+                include_risk=self.config.get("risk_sizing_enabled", True),
+                account_value=self.config.get("account_value"),
+                risk_budget_pct=self.config.get("risk_budget_pct", 1.0),
+            )
+        except Exception as exc:  # noqa: BLE001 — evidence is additive, never required
+            logger.warning("Fact sheet unavailable for %s on %s: %s", ticker, trade_date, exc)
+            return ""
+
     def resolve_instrument_context(self, ticker: str, asset_type: str = "stock") -> str:
         """Resolve ticker identity once and return the full instrument context.
 
@@ -422,12 +452,14 @@ class TradingAgentsGraph:
         # deterministically resolved instrument identity for all agents.
         past_context = self.memory_log.get_past_context(company_name)
         instrument_context = self.resolve_instrument_context(company_name, asset_type)
+        fact_sheet = self.build_fact_sheet(company_name, trade_date, asset_type)
         init_agent_state = self.propagator.create_initial_state(
             company_name,
             trade_date,
             asset_type=asset_type,
             past_context=past_context,
             instrument_context=instrument_context,
+            fact_sheet=fact_sheet,
         )
         args = self.propagator.get_graph_args()
 
@@ -490,6 +522,8 @@ class TradingAgentsGraph:
             "sentiment_report": final_state["sentiment_report"],
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
+            # .get: states built by programmatic callers predate this key.
+            "valuation_report": final_state.get("valuation_report", ""),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],

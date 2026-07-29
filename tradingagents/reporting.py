@@ -35,6 +35,10 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
         analysts_dir.mkdir(exist_ok=True)
         (analysts_dir / "fundamentals.md").write_text(final_state["fundamentals_report"], encoding="utf-8")
         analyst_parts.append(("Fundamentals Analyst", final_state["fundamentals_report"]))
+    if final_state.get("valuation_report"):
+        analysts_dir.mkdir(exist_ok=True)
+        (analysts_dir / "valuation.md").write_text(final_state["valuation_report"], encoding="utf-8")
+        analyst_parts.append(("Valuation Analyst", final_state["valuation_report"]))
     if analyst_parts:
         content = "\n\n".join(f"### {name}\n{text}" for name, text in analyst_parts)
         sections.append(f"## I. Analyst Team Reports\n\n{content}")
@@ -94,6 +98,17 @@ def write_report_tree(final_state: dict, ticker: str, save_path) -> Path:
             portfolio_dir.mkdir(exist_ok=True)
             (portfolio_dir / "decision.md").write_text(risk["judge_decision"], encoding="utf-8")
             sections.append(f"## V. Portfolio Manager Decision\n\n### Portfolio Manager\n{risk['judge_decision']}")
+
+    # 6. Verified fact sheet. Written alongside the prose so a reader can check
+    # any figure an agent labelled "verified" against the deterministic source
+    # it was supposed to come from — the audit trail that makes the fact/opinion
+    # separation in the reports meaningful rather than merely stated.
+    if final_state.get("fact_sheet"):
+        (save_path / "fact_sheet.md").write_text(final_state["fact_sheet"], encoding="utf-8")
+        sections.append(
+            "## VI. Verified Fact Sheet (deterministic, no LLM)\n\n"
+            f"{final_state['fact_sheet']}"
+        )
 
     # Write consolidated report
     header = f"# Trading Analysis Report: {ticker}\n\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"

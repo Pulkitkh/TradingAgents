@@ -1,4 +1,6 @@
 from tradingagents.agents.utils.agent_utils import (
+    EVIDENCE_RULES,
+    get_fact_sheet_from_state,
     get_instrument_context_from_state,
     get_language_instruction,
 )
@@ -18,6 +20,9 @@ def create_neutral_debator(llm):
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
         instrument_context = get_instrument_context_from_state(state)
+        fact_sheet = get_fact_sheet_from_state(state)
+        valuation_report = state.get("valuation_report", "")
+        trade_date = state.get("trade_date", "the analysis date")
 
         trader_decision = state["trader_investment_plan"]
 
@@ -32,9 +37,28 @@ Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
+Relative Valuation Report: {valuation_report}
+
+--- VERIFIED FACT SHEET (analysis date {trade_date}) ---
+{fact_sheet}
+--- END VERIFIED FACT SHEET ---
 Here is the current conversation history: {history} Here is the last response from the aggressive analyst: {current_aggressive_response} Here is the last response from the conservative analyst: {current_conservative_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
-Engage actively by analyzing both sides critically, addressing weaknesses in the aggressive and conservative arguments to advocate for a more balanced approach. Challenge each of their points to illustrate why a moderate risk strategy might offer the best of both worlds, providing growth potential while safeguarding against extreme volatility. Focus on debating rather than simply presenting data, aiming to show that a balanced view can lead to the most reliable outcomes. Output conversationally as if you are speaking without any special formatting.""" + get_language_instruction()
+Engage actively by analyzing both sides critically, addressing weaknesses in the aggressive and conservative arguments to advocate for a more balanced approach. Challenge each of their points to illustrate why a moderate risk strategy might offer the best of both worlds, providing growth potential while safeguarding against extreme volatility. Focus on debating rather than simply presenting data, aiming to show that a balanced view can lead to the most reliable outcomes. Output conversationally as if you are speaking without any special formatting.
+
+---
+
+**Debate on evidence, not on emphasis.** The verified fact sheet above is the
+only set of figures either side may state as measured. A figure that appears in
+an analyst report but not in the fact sheet is reported or inferred — you may
+argue from it, but you must say what it is, and you may not treat it as settling
+a point. Where you and your counterpart disagree about a *fact*, stop arguing and
+name the disagreement; where you disagree about what verified facts *mean*, argue
+hard.
+
+Do not treat a sentiment read flagged as "not an independent signal" as
+corroboration — it is the news already counted once.
+""" + EVIDENCE_RULES + get_language_instruction()
 
         response = llm.invoke(prompt)
 

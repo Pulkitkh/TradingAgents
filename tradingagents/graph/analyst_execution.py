@@ -10,6 +10,11 @@ class AnalystNodeSpec:
     clear_node: str
     tool_node: str
     report_key: str
+    # Analysts that pre-fetch their evidence into the prompt never emit tool
+    # calls, so wiring them a tool node and a conditional edge adds graph
+    # surface that can only ever be dead. Marking them here lets the graph
+    # builder connect them straight through to their clear node.
+    tool_free: bool = False
 
 
 @dataclass(frozen=True)
@@ -49,6 +54,14 @@ ANALYST_NODE_SPECS: dict[str, AnalystNodeSpec] = {
         clear_node="Msg Clear Fundamentals",
         tool_node="tools_fundamentals",
         report_key="fundamentals_report",
+    ),
+    "valuation": AnalystNodeSpec(
+        key="valuation",
+        agent_node="Valuation Analyst",
+        clear_node="Msg Clear Valuation",
+        tool_node="tools_valuation",
+        report_key="valuation_report",
+        tool_free=True,
     ),
 }
 

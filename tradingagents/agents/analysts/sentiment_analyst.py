@@ -85,8 +85,12 @@ def create_sentiment_analyst(llm):
                 (
                     "system",
                     "You are a helpful AI assistant, collaborating with other assistants."
-                    " If you or any other assistant has the FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** or deliverable,"
-                    " prefix your response with FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** so the team knows to stop."
+                    " You are an analyst, not a decision maker: report what your"
+                    " domain shows and stop there. Do NOT issue a buy, sell, or hold"
+                    " recommendation, and do not emit a transaction proposal — the"
+                    " Portfolio Manager owns the decision after the full debate, and"
+                    " a directional call here contradicts the final memo in the saved"
+                    " report."
                     # No tool-calling here: the data is pre-fetched into the
                     # prompt, so tool-range wording would only invite a
                     # hallucinated tool call (#1130).
@@ -172,6 +176,8 @@ Community discussion. Engagement signal via upvote score and comment count. Subr
 
 6. **Be honest about data limits.** If StockTwits returned only a handful of messages, or one or more sources returned an "<unavailable>" placeholder, the sentiment read is less robust — flag this explicitly in the `confidence` field and the narrative. If the sources are silent on a given subreddit, say so.
 
+7. **Do not manufacture a signal from an empty social read.** StockTwits indexes US tickers and the major investing subreddits rarely discuss non-US listings, so for an NSE/BSE, Tokyo, or London name both social sources routinely return nothing. When that happens you are reading the *same news the News Analyst already covered*, and a directional band from you would enter the debate as a second independent opinion when it is one input counted twice. In that case: set `overall_band` to **Neutral**, set `overall_score` near 5.0, set `confidence` to **low**, list only the sources that actually returned data in `sources_with_data`, and state in the narrative that no independent retail-sentiment signal was available. Summarising the news framing is still useful — presenting it as sentiment confirmation is not.
+
 7. **Identify catalysts and risks** that emerge across sources — news of upcoming earnings, product launches, competitive threats, macro headlines, etc.
 
 8. **Past sentiment is not predictive.** Frame your conclusions as signal for the trader to weigh alongside fundamentals and technicals, not as a price call.
@@ -180,9 +186,10 @@ Community discussion. Engagement signal via upvote score and comment count. Subr
 
 Fill the following fields:
 
-- **overall_band**: Exactly one of Bullish / Mildly Bullish / Neutral / Mixed / Mildly Bearish / Bearish. Use Mixed when sources point in clearly different directions; Neutral only when all sources are genuinely silent.
+- **overall_band**: Exactly one of Bullish / Mildly Bullish / Neutral / Mixed / Mildly Bearish / Bearish. Use Mixed when sources point in clearly different directions; Neutral when the social sources are silent or all sources are genuinely non-committal.
 - **overall_score**: A number from 0 (maximally bearish) to 10 (maximally bullish); 5 is neutral. Keep it consistent with overall_band.
 - **confidence**: low / medium / high, based on data quality and sample size.
+- **sources_with_data**: Which of `news`, `stocktwits`, `reddit` actually returned usable content. A placeholder or an empty result does not count. Be accurate — this field determines whether downstream agents treat your read as an independent signal, so an inflated list directly corrupts the final decision.
 - **narrative**: Full source-by-source breakdown, divergences, dominant narrative themes, catalysts and risks, and a markdown summary table of key sentiment signals (direction, source, supporting evidence).
 
 {get_language_instruction()}"""

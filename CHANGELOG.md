@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Breaking changes within the 0.x line are called out explicitly.
 
+## [Unreleased]
+
+Evidence and calibration release: a deterministic fact layer under every agent,
+probabilistic decisions, peer-relative valuation, and India-market handling.
+Motivated by tracing a live `RELIANCE.NS` run end to end and finding that a
+single unverified headline figure carried the entire decision.
+
+### Added
+
+- **Verified fact sheet.** A deterministic, LLM-free evidence block computed
+  before any agent runs — market snapshot, computed fundamentals, peer
+  multiples, risk levels, data freshness — injected into every report-producing
+  agent and written to `fact_sheet.md` in the report tree. Agents work under a
+  three-tier contract: verified / reported / inferred.
+- **Growth-basis conflict detection.** Revenue growth is computed on three
+  bases (latest quarter YoY, TTM YoY, last full year) and a warning fires when
+  they diverge materially. This closes the observed failure where a quarterly
+  25% figure from a headline propagated through five reports as the company's
+  growth rate while trailing growth was roughly 7%.
+- **Probabilistic portfolio decisions.** The Portfolio Manager now returns an
+  outcome distribution, conviction, provenance-tagged `key_facts`, invalidation
+  triggers, and data gaps alongside the rating. A rating contradicting its own
+  distribution is flagged in the rendered memo.
+- **Valuation Analyst.** A new tool-free analyst that judges relative valuation
+  against a computed NSE peer group. Peer sets, multiples, and medians are
+  computed in code; the agent supplies only the judgement of whether a discount
+  is deserved.
+- **Deterministic risk sizing.** ATR-scaled stop, target, and position size from
+  a configurable risk budget, rounded to the exchange tick, replacing
+  model-invented price levels.
+- **India market support.** IST session state, staleness measured in trading
+  sessions, lakh/crore rendering with Indian digit grouping, ₹0.05 tick
+  rounding, and NSE/BSE benchmark resolution.
+- **Token-shaping env vars.** `news_article_limit`,
+  `global_news_article_limit`, and `global_news_lookback_days` are now
+  overridable from the environment; previously the heaviest prompt inputs were
+  reachable only by editing `default_config.py`.
+
+### Fixed
+
+- **Decision agents receive the analysis date.** The researchers, managers,
+  trader, and risk debators were given no date at all, so a model asked to date
+  a memo invented one — observed producing an "October 2023" header on a
+  2026-07-27 run.
+- **Analysts no longer issue transaction proposals.** Every analyst prompt
+  carried decision-agent boilerplate instructing it to emit
+  `FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL**`, so a saved market report
+  could end in "SELL" while the actual decision was Overweight.
+- **Fundamentals analyst prompt was a tuple.** A trailing comma made the system
+  message a 1-tuple, rendering a Python repr into the prompt instead of the
+  instructions.
+- **Empty social sentiment no longer becomes a bullish vote.** The Sentiment
+  Analyst declares which sources returned data; a news-only read is marked not
+  an independent signal, since StockTwits and Reddit routinely return nothing
+  for non-US listings.
+- **Dividend yield is computed, not guessed.** The vendor field has shipped as
+  both a ratio and a percentage in a range where the conventions overlap, so it
+  is now derived from dividend rate and price where possible and flagged as
+  approximate otherwise.
+- **Tool-free analysts get no dead tool node.** Analysts that pre-fetch their
+  evidence no longer have an unreachable tool node and conditional edge wired
+  into the graph.
+
 ## [0.3.1] — 2026-07-05
 
 Correctness and stability patch: data look-ahead, graph-router crash-safety,

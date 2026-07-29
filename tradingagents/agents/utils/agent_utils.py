@@ -42,8 +42,10 @@ __all__ = [
     "build_instrument_context",
     "resolve_instrument_identity",
     "get_instrument_context_from_state",
+    "get_fact_sheet_from_state",
     "get_language_instruction",
     "create_msg_delete",
+    "EVIDENCE_RULES",
 ]
 
 logger = logging.getLogger(__name__)
@@ -63,6 +65,41 @@ def get_language_instruction() -> str:
     if lang.strip().lower() == "english":
         return ""
     return f" Write your entire response in {lang}."
+
+
+# The fact/opinion contract, appended to every report-producing agent's prompt.
+# Kept in one place so the rule the schemas enforce and the rule the prompts
+# state cannot drift apart.
+EVIDENCE_RULES = (
+    " Label every load-bearing figure. A number that appears in the verified "
+    "fact sheet may be stated as fact — quote it exactly, do not re-round or "
+    "re-derive it. A number from a news article, filing summary, or social post "
+    "must be attributed and its period named (a single quarter's growth is not "
+    "the company's growth rate). A number you estimated yourself must be marked "
+    "as your inference. If a figure is in none of those places, say it is "
+    "unavailable rather than supplying it — 'this could not be verified' is a "
+    "more useful answer than a plausible invention."
+)
+
+
+def get_fact_sheet_from_state(state: Mapping[str, Any]) -> str:
+    """Return the run's verified fact sheet, or an explicit no-evidence notice.
+
+    Never returns an empty string: an agent that receives nothing has no way to
+    know whether the evidence layer was disabled or simply silent, and would
+    default to treating its own recall as fact. The fallback says plainly that
+    nothing was verified this run.
+    """
+    sheet = state.get("fact_sheet")
+    if isinstance(sheet, str) and sheet.strip():
+        return sheet
+    return (
+        "# VERIFIED FACT SHEET — UNAVAILABLE\n\n"
+        "No deterministic evidence was computed for this run. You have no "
+        "verified figures. Treat every number in the reports below as reported "
+        "or inferred, attribute each one to its source, and state explicitly "
+        "that none could be independently verified."
+    )
 
 
 def _clean_identity_value(value: Any) -> str | None:

@@ -1,4 +1,6 @@
 from tradingagents.agents.utils.agent_utils import (
+    EVIDENCE_RULES,
+    get_fact_sheet_from_state,
     get_instrument_context_from_state,
     get_language_instruction,
 )
@@ -18,6 +20,9 @@ def create_conservative_debator(llm):
         news_report = state["news_report"]
         fundamentals_report = state["fundamentals_report"]
         instrument_context = get_instrument_context_from_state(state)
+        fact_sheet = get_fact_sheet_from_state(state)
+        valuation_report = state.get("valuation_report", "")
+        trade_date = state.get("trade_date", "the analysis date")
 
         trader_decision = state["trader_investment_plan"]
 
@@ -32,9 +37,28 @@ Market Research Report: {market_research_report}
 Social Media Sentiment Report: {sentiment_report}
 Latest World Affairs Report: {news_report}
 Company Fundamentals Report: {fundamentals_report}
+Relative Valuation Report: {valuation_report}
+
+--- VERIFIED FACT SHEET (analysis date {trade_date}) ---
+{fact_sheet}
+--- END VERIFIED FACT SHEET ---
 Here is the current conversation history: {history} Here is the last response from the aggressive analyst: {current_aggressive_response} Here is the last response from the neutral analyst: {current_neutral_response}. If there are no responses from the other viewpoints yet, present your own argument based on the available data.
 
-Engage by questioning their optimism and emphasizing the potential downsides they may have overlooked. Address each of their counterpoints to showcase why a conservative stance is ultimately the safest path for the firm's assets. Focus on debating and critiquing their arguments to demonstrate the strength of a low-risk strategy over their approaches. Output conversationally as if you are speaking without any special formatting.""" + get_language_instruction()
+Engage by questioning their optimism and emphasizing the potential downsides they may have overlooked. Address each of their counterpoints to showcase why a conservative stance is ultimately the safest path for the firm's assets. Focus on debating and critiquing their arguments to demonstrate the strength of a low-risk strategy over their approaches. Output conversationally as if you are speaking without any special formatting.
+
+---
+
+**Debate on evidence, not on emphasis.** The verified fact sheet above is the
+only set of figures either side may state as measured. A figure that appears in
+an analyst report but not in the fact sheet is reported or inferred — you may
+argue from it, but you must say what it is, and you may not treat it as settling
+a point. Where you and your counterpart disagree about a *fact*, stop arguing and
+name the disagreement; where you disagree about what verified facts *mean*, argue
+hard.
+
+Do not treat a sentiment read flagged as "not an independent signal" as
+corroboration — it is the news already counted once.
+""" + EVIDENCE_RULES + get_language_instruction()
 
         response = llm.invoke(prompt)
 

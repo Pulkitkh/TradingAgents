@@ -1,6 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from tradingagents.agents.utils.agent_utils import (
+    EVIDENCE_RULES,
     get_global_news,
     get_instrument_context_from_state,
     get_language_instruction,
@@ -26,7 +27,16 @@ def create_news_analyst(llm):
 
         system_message = (
             f"You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(ticker, start_date, end_date) for {asset_label}-specific news by ticker symbol, get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news, get_macro_indicators(indicator, curr_date, look_back_days) to ground macro commentary in actual data from FRED (e.g. 'cpi', 'core_pce', 'unemployment', 'fed_funds_rate', '10y_treasury', 'yield_curve'), and get_prediction_markets(topic, limit) for live market-implied probabilities of forward-looking events (e.g. 'Fed rate cut', 'recession 2026', geopolitical or sector events). Provide specific, actionable insights with supporting evidence to help traders make informed decisions."
+            + " Every financial figure you take from a news article is a REPORTED figure,"
+            + " not a measured one. Attribute each to its source and name the exact period"
+            + " it covers — 'management reported 25% revenue growth for the June quarter"
+            + " (earnings coverage)' is usable downstream; a bare '25% revenue growth' is"
+            + " not, because later agents will read it as the company's growth rate and"
+            + " build a valuation case on it. Never restate a headline figure as though"
+            + " it were verified, and where a report gives a growth or margin number,"
+            + " say whether it is quarterly, trailing, or annual."
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
+            + EVIDENCE_RULES
             + get_language_instruction()
         )
 
@@ -38,8 +48,12 @@ def create_news_analyst(llm):
                     " Use the provided tools to progress towards answering the question."
                     " If you are unable to fully answer, that's OK; another assistant with different tools"
                     " will help where you left off. Execute what you can to make progress."
-                    " If you or any other assistant has the FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** or deliverable,"
-                    " prefix your response with FINAL TRANSACTION PROPOSAL: **BUY/HOLD/SELL** so the team knows to stop."
+                    " You are an analyst, not a decision maker: report what your"
+                    " domain shows and stop there. Do NOT issue a buy, sell, or hold"
+                    " recommendation, and do not emit a transaction proposal — the"
+                    " Portfolio Manager owns the decision after the full debate, and"
+                    " a directional call here contradicts the final memo in the saved"
+                    " report."
                     " You have access to the following tools: {tool_names}."
                     " Today's date is {current_date}; treat it as 'now' for all analysis and tool-call date ranges. {instrument_context}\n"
                     "{system_message}",

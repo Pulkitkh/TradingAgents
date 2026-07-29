@@ -52,6 +52,11 @@ class AgentState(MessagesState):
 
     sender: Annotated[str, "Agent that sent this message"]
 
+    # Deterministic evidence computed once before any agent runs. Every figure
+    # in it is reproducible without an LLM, which is what lets downstream agents
+    # label a claim "verified" and a reader check that label.
+    fact_sheet: Annotated[str, "Verified fact sheet computed at run start"]
+
     # research step
     market_report: Annotated[str, "Report from the Market Analyst"]
     sentiment_report: Annotated[str, "Report from the Sentiment Analyst"]
@@ -59,6 +64,7 @@ class AgentState(MessagesState):
         str, "Report from the News Researcher of current world affairs"
     ]
     fundamentals_report: Annotated[str, "Report from the Fundamentals Researcher"]
+    valuation_report: Annotated[str, "Report from the Valuation Analyst (peer-relative)"]
 
     # researcher team discussion step
     investment_debate_state: Annotated[

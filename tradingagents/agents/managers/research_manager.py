@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from tradingagents.agents.schemas import ResearchPlan, render_research_plan
 from tradingagents.agents.utils.agent_utils import (
+    EVIDENCE_RULES,
+    get_fact_sheet_from_state,
     get_instrument_context_from_state,
     get_language_instruction,
 )
@@ -19,13 +21,21 @@ def create_research_manager(llm):
 
     def research_manager_node(state) -> dict:
         instrument_context = get_instrument_context_from_state(state)
+        fact_sheet = get_fact_sheet_from_state(state)
+        trade_date = state.get("trade_date", "the analysis date")
         history = state["investment_debate_state"].get("history", "")
 
         investment_debate_state = state["investment_debate_state"]
 
         prompt = f"""As the Research Manager and debate facilitator, your role is to critically evaluate this round of debate and deliver a clear, actionable investment plan for the trader.
 
+The analysis date is **{trade_date}**.
+
 {instrument_context}
+
+---
+
+{fact_sheet}
 
 ---
 
@@ -43,7 +53,16 @@ Commit to a clear stance whenever the debate's strongest arguments warrant one; 
 **Debate History:**
 {history}
 
-{NO_EXTERNAL_TOOLS}""" + get_language_instruction()
+---
+
+A debater who asserted a figure more forcefully has not thereby established it.
+Weigh each side by whether its claims trace to the verified fact sheet above.
+Where the two sides disagree on a *fact*, that is a data problem, not a debate
+to be won — name it and say which observation would settle it. Where they
+disagree on *interpretation* of the same verified figures, that is a genuine
+judgement call and you should make it.
+
+{NO_EXTERNAL_TOOLS}{EVIDENCE_RULES}""" + get_language_instruction()
 
         investment_plan = invoke_structured_or_freetext(
             structured_llm,
